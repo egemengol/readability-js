@@ -1,0 +1,23 @@
+[package]
+name = "readability-js-cli"
+version.workspace = true
+edition = "2024"
+description = "Command-line interface for readability-js"
+license = "UPL-1.0"
+repository = "https://github.com/egemengol/readability-js"
+homepage = "https://github.com/egemengol/readability-js"
+readme = "../README.md"
+keywords = ["readability", "wrapper", "html", "parsing" ]
+
+[[bin]]
+name = "readable"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5.48", features = ["derive"] }
+color-eyre = "0.6.5"
+log = { version = "0.4.28", features = ["std"] }
+readability-js = {workspace = true}
+simple_logger = "5.0.0"
+ureq = "3.1.2"
+url = {workspace = true}

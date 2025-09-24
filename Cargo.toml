@@ -1,0 +1,19 @@
+[workspace]
+members = ["core", "cli"]
+resolver = "2"
+edition = "2024"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+url = "2.5.7"
+readability-js = { path = "core", version = "0.1.0" }
+
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

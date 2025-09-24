@@ -1,0 +1,15 @@
+[package]
+name = "readability-js"
+version.workspace = true
+edition = "2024"
+description = "A Rust wrapper for Mozilla's Readability.js library"
+license = "UPL-1.0"
+repository = "https://github.com/egemengol/readability-js"
+homepage = "https://github.com/egemengol/readability-js"
+readme = "../README.md"
+keywords = ["readability", "wrapper", "html", "parsing" ]
+
+[dependencies]
+rquickjs = "0.9.0"
+thiserror = "2.0.16"
+url = { workspace = true}

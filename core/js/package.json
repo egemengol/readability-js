@@ -1,0 +1,21 @@
+{
+  "name": "js",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "bundle": "./node_modules/.bin/esbuild script.js --bundle --outfile=bundled.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "@mozilla/readability": "^0.6.0"
+  },
+  "dependencies": {
+    "linkedom": "^0.18.12"
+  }
+}
