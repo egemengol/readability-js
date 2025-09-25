@@ -14,8 +14,10 @@ name = "readable"
 path = "src/main.rs"
 
 [dependencies]
+bat = "0.25.0"
 clap = { version = "4.5.48", features = ["derive"] }
 color-eyre = "0.6.5"
+html2md = { version = "0.2.15" }
 log = { version = "0.4.28", features = ["std"] }
 readability-js = {workspace = true}
 simple_logger = "5.0.0"

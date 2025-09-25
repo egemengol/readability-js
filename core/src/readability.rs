@@ -487,7 +487,6 @@ impl Readability {
                 Some(options) => Some(options.build(ctx.clone())?),
             };
 
-            println!("{}", &html[..100]);
             let result: Value = extract_fn
                 .call((html, clean_base_url, options_obj))
                 .js_context("Failed to call extract")?;
