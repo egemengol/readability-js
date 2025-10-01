@@ -70,21 +70,32 @@ println!("Content: {}", article.content);
 
 This crate uses Mozilla's actual Readability.js library implementation - the same code that powers Firefox Reader Mode. Creating a `Readability` instance takes ~30ms while processing a document takes ~10ms which is good enough for most applications, negligible compared to the accuracy benefits.
 
-## Documentation
-
-- [API Documentation](https://docs.rs/readability-js)
-- [Examples](./examples/)
-
 ## How It Works
 
-This crate embeds Mozilla's Readability.js library using a JavaScript engine. The algorithm:
+This crate embeds Mozilla's Readability.js library using the QuickJS JavaScript engine. The JavaScript bundle combines:
 
-1. Analyzes page structure and content patterns
-2. Identifies the main content container
-3. Removes navigation, ads, and sidebar elements
-4. Extracts metadata from HTML meta tags and content
-5. Returns clean HTML suitable for reading
+- **Mozilla Readability.js**: The core algorithm from Firefox Reader Mode
+- **linkedom**: A fast DOM implementation for server-side JavaScript
+
+The extraction process:
+
+1. Rust loads the HTML and calls into the embedded JavaScript context
+2. linkedom parses the HTML into a DOM tree (fast, server-optimized parsing)
+3. Mozilla's Readability.js analyzes the DOM structure and content patterns
+4. The algorithm identifies the main content container and removes clutter
+5. Clean HTML and extracted data are returned to Rust
+
+This approach ensures we use the exact same algorithm as Firefox while maintaining excellent performance through the lightweight QuickJS engine.
 
 ## License
 
 Licensed under the Universal Permissive License v1.0 (UPL-1.0)
+
+### Dependencies
+
+This crate bundles the following JavaScript libraries:
+
+- **Mozilla Readability.js** - Licensed under Apache License 2.0 (using unmodified files is permitted)
+- **linkedom** - Licensed under ISC License (highly permissive, no restrictions on use)
+
+Both dependencies use permissive licenses that fully allow bundling unmodified source code. No modifications were made to either library, ensuring full license compliance.
