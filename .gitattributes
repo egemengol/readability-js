@@ -1,0 +1,3 @@
+core/vendor/** linguist-vendored
+core/js/bundled.js linguist-vendored
+*.md linguist-documentation
