@@ -9,7 +9,32 @@ use std::path::PathBuf;
 use url::Url;
 
 #[derive(Parser)]
-#[command()]
+#[command(
+    about = "Extract readable content from HTML using Mozilla's Readability.js",
+    long_about = "
+Extract clean, readable content from web pages and HTML documents.
+Removes ads, navigation, sidebars and other clutter to get just the main article content.
+
+Uses the same battle-tested algorithm as Firefox Reader Mode for consistent results.
+Perfect for content processing, article archiving, and building reading applications.
+
+EXAMPLES:
+    readable article.html                    # Process local HTML file
+    readable https://example.com/news        # Fetch and process URL
+    curl -s https://site.com | readable      # Process from stdin
+
+    readable article.html > clean.md         # Save as Markdown
+    readable https://news.site/story | less  # View in pager
+
+INSTALLATION:
+    cargo install readability-js-cli
+
+OUTPUT:
+    By default outputs clean content as Markdown. The original HTML structure
+    is preserved but cleaned of navigation, ads, and other non-content elements.
+",
+    version
+)]
 struct Args {
     #[arg(
            help = "Input html file or URL (reads from stdin if not provided)",
@@ -25,9 +50,11 @@ fn main() -> Result<()> {
     let (html, urlstr) = get_html(args.input)?;
 
     let parser = Readability::new().wrap_err("could not create Readability")?;
-    let article = parser
-        .extract(&html, urlstr.as_deref(), None)
-        .wrap_err("extraction")?;
+    let article = match urlstr {
+        Some(ref url) => parser.parse_with_url(&html, url),
+        None => parser.parse(&html),
+    }
+    .wrap_err("extraction")?;
 
     let convert_to_markdown = true;
     if convert_to_markdown {

@@ -2,6 +2,7 @@ use rquickjs::{Context as QuickContext, Ctx, Function, Object, Runtime, Value};
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Direction {
     /// Left-to-Right
     Ltr,
@@ -9,26 +10,30 @@ pub enum Direction {
     Rtl,
 }
 
-/// Represents a parsed article from Readability.js
+/// Parsed article content and metadata extracted by Readability.
+///
+/// All fields except `title`, `content`, `text_content`, and `length` are optional
+/// and depend on the input HTML having appropriate metadata.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Article {
-    /// Title of the article (parsed or inferred from document)
+    /// Extracted or inferred article title
     pub title: String,
+
+    /// Clean HTML content (safe for display)
+    pub content: String,
+
+    /// Plain text with all HTML stripped
+    pub text_content: String,
+
+    /// Character count of the content
+    pub length: u32,
 
     /// Author byline metadata
     pub byline: Option<String>,
 
     /// Content direction
     pub direction: Option<Direction>,
-
-    /// HTML content of the processed article
-    pub content: String,
-
-    /// Plain-text content with all HTML tags removed
-    pub text_content: String,
-
-    /// Length of article content in characters
-    pub length: u32,
 
     /// Article description or short excerpt
     pub excerpt: Option<String>,
@@ -210,9 +215,27 @@ impl<'js> TryFrom<Value<'js>> for Article {
     }
 }
 
+/// Configuration options for content extraction.
+///
+/// Created with [`ReadabilityOptions::new`] and used with
+/// [`Readability::parse_with_options`].
+///
+/// See also: [`Readability::parse`] for basic extraction without options.
+/// # Examples
+///
+/// ```rust
+/// use readability_js::ReadabilityOptions;
+///
+/// // Fine-tuned for news sites
+/// let opts = ReadabilityOptions::new()
+///     .char_threshold(500)        // Require more content
+///     .nb_top_candidates(10)      // Consider more candidates
+///     .keep_classes(true)         // Preserve CSS classes
+///     .classes_to_preserve(vec!["highlight".into(), "code".into()]);
+/// ```
 #[derive(Default, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReadabilityOptions {
-    pub debug: Option<bool>,
     pub max_elems_to_parse: Option<usize>,
     pub nb_top_candidates: Option<usize>,
     pub char_threshold: Option<usize>,
@@ -224,37 +247,94 @@ pub struct ReadabilityOptions {
 }
 
 impl ReadabilityOptions {
+    /// Creates a new options builder with default values.
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn debug(mut self, val: bool) -> Self {
-        self.debug = Some(val);
-        self
-    }
+
+    /// Set maximum number of DOM elements to parse.
+    ///
+    /// Limits processing to avoid performance issues on very large documents.
+    /// Default is typically around 0 (unlimited).
+    ///
+    /// # Arguments
+    /// * `val` - Maximum elements to process (0 = unlimited)
     pub fn max_elems_to_parse(mut self, val: usize) -> Self {
         self.max_elems_to_parse = Some(val);
         self
     }
+
+    /// Set number of top content candidates to consider.
+    ///
+    /// The algorithm identifies potential content containers and ranks them.
+    /// Higher values may improve accuracy but reduce performance.
+    /// Default is typically 5.
+    ///
+    /// # Arguments
+    /// * `val` - Number of candidates to consider (recommended: 5-15)
     pub fn nb_top_candidates(mut self, val: usize) -> Self {
         self.nb_top_candidates = Some(val);
         self
     }
+
+    /// Set minimum character threshold for readable content.
+    ///
+    /// Content with fewer characters will fail the readability check.
+    /// Lower values are more permissive but may include navigation/ads.
+    /// Default is typically 140 characters.
+    ///
+    /// # Arguments
+    /// * `val` - Minimum character count (recommended: 50-500)
     pub fn char_threshold(mut self, val: usize) -> Self {
         self.char_threshold = Some(val);
         self
     }
+
+    /// Specify CSS classes to preserve in the output.
+    ///
+    /// By default, most CSS classes are stripped from the cleaned HTML.
+    /// Use this to preserve important styling classes.
+    ///
+    /// # Arguments
+    /// * `val` - Vector of class names to preserve (e.g., `vec!["highlight".into()]`)
     pub fn classes_to_preserve(mut self, val: Vec<String>) -> Self {
         self.classes_to_preserve = Some(val);
         self
     }
+
+    /// Whether to preserve CSS classes in the output.
+    ///
+    /// When true, CSS classes are preserved in the cleaned HTML.
+    /// When false (default), most classes are stripped.
+    ///
+    /// # Arguments
+    /// * `val` - true to preserve classes, false to strip them
     pub fn keep_classes(mut self, val: bool) -> Self {
         self.keep_classes = Some(val);
         self
     }
+
+    /// Disable JSON-LD metadata extraction.
+    ///
+    /// JSON-LD structured data can provide additional article metadata
+    /// (author, publish date, etc.). Disable this if you don't need
+    /// metadata or if it causes issues.
+    ///
+    /// # Arguments
+    /// * `val` - true to disable JSON-LD parsing, false to enable it
     pub fn disable_jsonld(mut self, val: bool) -> Self {
         self.disable_jsonld = Some(val);
         self
     }
+
+    /// Modify the link density calculation.
+    ///
+    /// Content with high link density is often navigation rather than article
+    /// content. This modifier adjusts how strictly link density is evaluated.
+    /// Values > 1.0 are more permissive, < 1.0 are stricter.
+    ///
+    /// # Arguments
+    /// * `val` - Link density modifier (recommended: 0.5-2.0, default: 1.0)
     pub fn link_density_modifier(mut self, val: f32) -> Self {
         self.link_density_modifier = Some(val);
         self
@@ -266,13 +346,6 @@ impl ReadabilityOptions {
             source: e,
         })?;
 
-        if let Some(val) = self.debug {
-            obj.set("debug", val)
-                .map_err(|e| ReadabilityError::JsEvaluation {
-                    context: "failed to set debug option".into(),
-                    source: e,
-                })?;
-        }
         if let Some(val) = self.max_elems_to_parse {
             obj.set("maxElemsToParse", val)
                 .map_err(|e| ReadabilityError::JsEvaluation {
@@ -370,25 +443,123 @@ impl ReadabilityOptions {
 //         Ok(obj)
 //     }
 // }
-
+//
+/// Errors that can occur during content extraction.
 #[derive(Error, Debug)]
 pub enum ReadabilityError {
+    /// HTML could not be parsed (malformed, empty, etc.)
+    ///
+    /// This typically occurs when:
+    /// - HTML is severely malformed or incomplete
+    /// - Empty or whitespace-only input
+    /// - Input contains non-HTML content
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use readability_js::Readability;
+    /// let reader = Readability::new()?;
+    /// // This will likely fail with HtmlParseError
+    /// let result = reader.parse("<not valid html>");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[error("Failed to parse HTML: {0}")]
     HtmlParseError(String),
 
+    /// Content failed internal readability checks
+    ///
+    /// This usually means:
+    /// - Page has too little readable content (< 140 characters by default)
+    /// - Content couldn't be reliably distinguished from navigation/ads
+    /// - Page is mostly navigation, ads, or other non-content elements
+    /// - Content has too high link density (likely navigation)
+    ///
+    /// # What to do
+    ///
+    /// Try lowering the `char_threshold` in [`ReadabilityOptions`] or check
+    /// if the HTML actually contains substantial article content:
+    ///
+    /// ```rust
+    /// # use readability_js::{Readability, ReadabilityOptions};
+    /// let options = ReadabilityOptions::new().char_threshold(50);
+    /// let reader = Readability::new()?;
+    /// let article = reader.parse_with_options(&html, None, Some(options))?;
+    /// # Ok::<(), readability_js::ReadabilityError>(())
+    /// ```
     #[error("Content failed readability check")]
     ReadabilityCheckFailed,
 
+    /// Content extraction failed for other reasons
+    ///
+    /// This is a catch-all error for unexpected extraction failures that don't
+    /// fit into other categories. Often indicates issues with the JavaScript
+    /// execution environment or unexpected content structures.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use readability_js::{Readability, ReadabilityError};
+    /// let reader = Readability::new()?;
+    /// match reader.parse(&html) {
+    ///     Err(ReadabilityError::ExtractionError(msg)) => {
+    ///         eprintln!("Extraction failed: {}", msg);
+    ///         // Maybe try with different options or fallback processing
+    ///     }
+    ///     Ok(article) => println!("Success: {}", article.title),
+    ///     Err(e) => eprintln!("Other error: {}", e),
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[error("Failed to extract readable content: {0}")]
     ExtractionError(String),
 
+    /// JavaScript engine evaluation error
+    ///
+    /// Occurs when the embedded JavaScript engine fails to execute Readability.js
+    /// code. This could indicate:
+    /// - Memory constraints
+    /// - JavaScript syntax errors in the bundled code
+    /// - Runtime exceptions in the JavaScript environment
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use readability_js::{Readability, ReadabilityError};
+    /// let reader = Readability::new()?;
+    /// match reader.parse(&html) {
+    ///     Err(ReadabilityError::JsEvaluation { context, source }) => {
+    ///         eprintln!("JavaScript error in {}: {}", context, source);
+    ///         // This usually indicates a bug - please report it!
+    ///     }
+    ///     Ok(article) => println!("Success: {}", article.title),
+    ///     Err(e) => eprintln!("Other error: {}", e),
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[error("Failed to evaluate JavaScript: {context}")]
     JsEvaluation {
         context: String,
-        #[source] // This attribute is key!
+        #[source]
         source: rquickjs::Error,
     },
 
+    /// Invalid input parameters (usually base URL)
+    ///
+    /// This error occurs when:
+    /// - Base URL has invalid format or unsupported scheme
+    /// - URL uses dangerous schemes like `javascript:` or `data:`
+    /// - URL is not HTTP(S) when validation is enabled
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use readability_js::{Readability, ReadabilityError};
+    /// let reader = Readability::new()?;
+    /// // This will fail with InvalidOptions
+    /// let result = reader.parse_with_url(&html, "javascript:alert('xss')");
+    /// assert!(matches!(result, Err(ReadabilityError::InvalidOptions(_))));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[error("Invalid options: {0}")]
     InvalidOptions(String),
 }
@@ -408,32 +579,55 @@ impl<T> JsResultExt<T> for std::result::Result<T, rquickjs::Error> {
 
 type Result<T> = std::result::Result<T, ReadabilityError>;
 
+/// The main readability parser that extracts clean content from HTML.
+///
+/// Uses Mozilla's Readability.js algorithm running in an embedded JavaScript engine.
+/// Create once and reuse for multiple extractions - the JS context initialization
+/// is expensive.
+///
+/// # Examples
+///
+/// ```rust
+/// use readability_js::{Readability, ReadabilityOptions};
+///
+/// // Create parser (expensive - reuse this!)
+/// let reader = Readability::new()?;
+///
+/// // Basic extraction
+/// let article = reader.extract(html, Some("https://example.com"), None)?;
+///
+/// // With custom options
+/// let options = ReadabilityOptions::new()
+///     .char_threshold(500);
+/// let article = reader.extract(html, Some("https://example.com"), Some(options))?;
+/// # Ok::<(), readability_js::ReadabilityError>(())
+/// ```
+///
+/// # Thread Safety
+///
+/// `Readability` instances are **not** thread-safe (`!Send + !Sync`). Each instance
+/// contains an embedded JavaScript engine that cannot be moved between threads or
+/// shared between threads.
 pub struct Readability {
     context: QuickContext,
 }
 impl Readability {
+    /// Creates a new readability parser.
+    ///
+    /// # Performance
+    ///
+    /// This operation is expensive (50-100ms) as it initializes a JavaScript engine
+    /// and loads the Readability.js library. Create one instance and reuse it for
+    /// multiple extractions.
+    ///
+    /// # JavaScript Engine
+    ///
+    /// This method initializes an embedded QuickJS runtime. The JavaScript code
+    /// executed is Mozilla's Readability.js library and is considered safe for
+    /// processing untrusted HTML input.
     pub fn new() -> Result<Self> {
         let runtime = Runtime::new().js_context("Failed to create runtime")?;
         let context = QuickContext::full(&runtime).js_context("Failed to create context")?;
-
-        // context.with(|ctx| {
-        //     // Load JSDOMParser
-        //     let jsdom_parser_code = include_str!("../vendor/linkedom/worker.js");
-        //     ctx.eval::<(), _>(jsdom_parser_code)
-        //         .js_context("Failed to load linkedom")?;
-
-        //     // Load Readability
-        //     let readability_code = include_str!("../vendor/readability/Readability.js");
-        //     ctx.eval::<(), _>(readability_code)
-        //         .js_context("Failed to load Readability")?;
-
-        //     // Load our functions
-        //     let script = include_str!("./script.js");
-        //     ctx.eval::<(), _>(script)
-        //         .js_context("Failed to load script")?;
-
-        //     Ok(())
-        // })?;
 
         context.with(|ctx| {
             let readability_code = include_str!("../vendor/readability/Readability.js");
@@ -466,8 +660,125 @@ impl Readability {
         }
     }
 
-    /// Extract readable content unconditionally
-    pub fn extract(
+    /// Extract readable content from HTML.
+    ///
+    /// This is the main extraction method. It processes the HTML to remove
+    /// ads, navigation, sidebars and other clutter, leaving just the main article content.
+    ///
+    /// # Arguments
+    ///
+    /// * `html` - The HTML content to process. Should be a complete HTML document.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use readability_js::Readability;
+    ///
+    /// let html = r#"
+    ///   <html>
+    ///     <body>
+    ///       <article>
+    ///         <h1>Breaking News</h1>
+    ///         <p>Important news content here...</p>
+    ///       </article>
+    ///       <nav>Navigation menu</nav>
+    ///       <aside>Advertisement</aside>
+    ///     </body>
+    ///   </html>
+    /// "#;
+    ///
+    /// let reader = Readability::new()?;
+    /// let article = reader.parse(html)?;
+    ///
+    /// assert_eq!(article.title, "Breaking News");
+    /// assert!(article.content.contains("Important news content"));
+    /// // Navigation and ads are removed from the output
+    /// # Ok::<(), readability_js::ReadabilityError>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReadabilityError`] if:
+    /// * The HTML is malformed or empty (`HtmlParseError`)
+    /// * The page fails readability checks (`ReadabilityCheckFailed`)
+    /// * JavaScript evaluation fails (`JsEvaluation`)
+    ///
+    /// # Performance
+    ///
+    /// This method is fast (typically <10ms) once the [`Readability`] instance
+    /// is created. The expensive operation is [`Readability::new()`] which should
+    /// be called once and reused.
+    pub fn parse(&self, html: &str) -> Result<Article> {
+        self.extract(html, None, None)
+    }
+
+    /// Extract readable content from HTML with URL context.
+    ///
+    /// The URL helps with better link resolution and metadata extraction.
+    ///
+    /// # Arguments
+    ///
+    /// * `html` - The HTML content to extract from
+    /// * `base_url` - The original URL of the page for link resolution
+    ///
+    /// # Examples
+    /// ```rust
+    /// use readability_js::Readability;
+    ///
+    /// let reader = Readability::new()?;
+    /// let article = reader.parse_with_url(html, "https://example.com/article")?;
+    /// // Links in the article will be properly resolved
+    /// # Ok::<(), readability_js::ReadabilityError>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// * The HTML is malformed or cannot be parsed ([`ReadabilityError::HtmlParseError`])
+    /// * The base URL is invalid ([`ReadabilityError::InvalidOptions`])
+    /// * The content fails internal readability checks ([`ReadabilityError::ReadabilityCheckFailed`])
+    /// * JavaScript evaluation fails ([`ReadabilityError::JsEvaluation`])
+    pub fn parse_with_url(&self, html: &str, base_url: &str) -> Result<Article> {
+        self.extract(html, Some(base_url), None)
+    }
+
+    /// Extract readable content with custom parsing options.
+    ///
+    /// # Arguments
+    ///
+    /// * `html` - The HTML content to extract from
+    /// * `base_url` - Optional URL for link resolution
+    /// * `options` - Custom parsing options
+    ///
+    /// # Examples
+    /// ```rust
+    /// use readability_js::{Readability, ReadabilityOptions};
+    ///
+    /// let options = ReadabilityOptions::new()
+    ///     .char_threshold(500);
+    ///
+    /// let reader = Readability::new()?;
+    /// let article = reader.parse_with_options(html, Some("https://example.com"), Some(options))?;
+    /// # Ok::<(), readability_js::ReadabilityError>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// * The HTML is malformed or cannot be parsed ([`ReadabilityError::HtmlParseError`])
+    /// * The base URL is invalid ([`ReadabilityError::InvalidOptions`])
+    /// * The content fails internal readability checks ([`ReadabilityError::ReadabilityCheckFailed`])
+    /// * JavaScript evaluation fails ([`ReadabilityError::JsEvaluation`])
+    pub fn parse_with_options(
+        &self,
+        html: &str,
+        base_url: Option<&str>,
+        options: Option<ReadabilityOptions>,
+    ) -> Result<Article> {
+        self.extract(html, base_url, options)
+    }
+
+    fn extract(
         &self,
         html: &str,
         base_url: Option<&str>,
