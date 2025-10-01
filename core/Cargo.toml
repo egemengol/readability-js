@@ -18,3 +18,10 @@ url = { workspace = true}
 [features]
 default = []
 serde = ["dep:serde"]
+
+[dev-dependencies]
+criterion = { version = "0.7.0", features = ["html_reports"] }
+
+[[bench]]
+name = "readability_js_bench"
+harness = false

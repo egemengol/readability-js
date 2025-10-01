@@ -66,9 +66,9 @@ println!("Content: {}", article.content);
 - **High Performance**: Reusable parser instances for batch processing
 - **Error Recovery**: Handles malformed HTML and edge cases
 
-## Performance
+## Why `readability-js`?
 
-Creating a `Readability` instance is expensive (~50-100ms) due to JavaScript engine initialization. Once created, parsing individual documents is fast (~10ms). Reuse the same instance when processing multiple documents.
+This crate uses Mozilla's actual Readability.js library implementation - the same code that powers Firefox Reader Mode. Creating a `Readability` instance takes ~30ms while processing a document takes ~10ms which is good enough for most applications, negligible compared to the accuracy benefits.
 
 ## Documentation
 

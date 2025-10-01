@@ -4,6 +4,17 @@
 //! from HTML documents, removing navigation, ads, and other clutter. It uses the same
 //! algorithm as Firefox Reader Mode.
 //!
+//! # Algorithm
+//!
+//! This crate embeds Mozilla's Readability.js library using a JavaScript engine.
+//! It uses the same algorithm that processes articles in Firefox Reader Mode,
+//! providing high accuracy on modern web content including single-page applications
+//! and complex layouts.
+//!
+//! Unlike pure Rust port crates available, this approach sacrifices
+//! some performance for extraction accuracy and ongoing improvements
+//! from Mozilla's team.
+//!
 //! # Quick Start
 //!
 //! ```rust
@@ -48,7 +59,7 @@
 //!
 //! # Performance Considerations
 //!
-//! Creating a [`Readability`] instance is expensive (~50-100ms) as it initializes a JavaScript
+//! Creating a [`Readability`] instance is expensive (~30ms) as it initializes a JavaScript
 //! engine. Once created, parsing individual documents is fast (~10ms). Reuse the same instance
 //! when processing multiple documents:
 //!
