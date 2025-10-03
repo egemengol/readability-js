@@ -1484,6 +1484,8 @@ dependencies = [
  "html2md",
  "log",
  "readability-js",
+ "serde",
+ "serde_yaml",
  "simple_logger",
  "ureq",
  "url",

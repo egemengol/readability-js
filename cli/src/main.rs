@@ -1,7 +1,8 @@
 use clap::Parser;
 use color_eyre::Result;
 use color_eyre::eyre::{Context, bail};
-use readability_js::Readability;
+use readability_js::{Article, Direction, Readability};
+use serde::Serialize;
 use std::fs::File;
 use std::io::Write;
 use std::io::{self, Read};
@@ -19,19 +20,20 @@ Uses the same battle-tested algorithm as Firefox Reader Mode for consistent resu
 Perfect for content processing, article archiving, and building reading applications.
 
 EXAMPLES:
-    readable article.html                    # Process local HTML file
-    readable https://example.com/news        # Fetch and process URL
-    curl -s https://site.com | readable      # Process from stdin
+    readable article.html                                       # Process local HTML file
+    readable https://egemengol.com/blog/readability/            # Fetch and process URL
+    curl -s https://egemengol.com/blog/readability/ | readable  # Process from stdin
 
-    readable article.html > clean.md         # Save as Markdown
-    readable https://news.site/story | less  # View in pager
+    readable article.html > clean.md                                    # Save as Markdown
+    readable https://egemengol.com/blog/readability/ | bat -l markdown  # View in pager
 
 INSTALLATION:
     cargo install readability-js-cli
 
 OUTPUT:
-    By default outputs clean content as Markdown. The original HTML structure
-    is preserved but cleaned of navigation, ads, and other non-content elements.
+    By default outputs clean content as Markdown with YAML frontmatter containing
+    article metadata (title, author, etc). Use --html for raw HTML output or
+    --no-frontmatter for plain Markdown without metadata.
 ",
     version
 )]
@@ -41,6 +43,33 @@ struct Args {
            value_hint = clap::ValueHint::AnyPath
        )]
     input: Option<String>,
+
+    #[arg(
+        long,
+        help = "Output raw HTML instead of Markdown",
+        long_help = "Output the cleaned HTML content directly instead of converting to Markdown.
+The HTML will still be processed by Readability to remove navigation, ads, and other
+non-content elements, but the structure and formatting will remain as HTML."
+    )]
+    html: bool,
+
+    #[arg(
+        long = "no-frontmatter",
+        help = "Skip YAML frontmatter when outputting Markdown",
+        long_help = "Don't include YAML frontmatter with article metadata (title, author, URL, etc)
+at the top of Markdown output. Only affects Markdown output - has no effect when --html is used.
+
+Without this flag, Markdown output includes metadata like:
+---
+title: Clean Content in Rust with readability-js
+url: https://egemengol.com/blog/readability/
+length: 1694
+language: en
+---
+
+With this flag, only the article content is output."
+    )]
+    no_frontmatter: bool,
 }
 
 fn main() -> Result<()> {
@@ -56,13 +85,27 @@ fn main() -> Result<()> {
     }
     .wrap_err("extraction")?;
 
-    let convert_to_markdown = true;
+    let convert_to_markdown = !args.html;
+    let write_frontmatter = convert_to_markdown && !args.no_frontmatter;
+
     if convert_to_markdown {
         let markdown = html2md::parse_html(&article.content);
-        io::stdout().lock().write_all(markdown.as_bytes())?;
+        let mut out = io::stdout().lock();
+
+        if write_frontmatter {
+            out.write_all("---\n".as_bytes())?;
+            let mut metadata = ArticleMetadata::from(article);
+            if let Some(urlstr) = urlstr {
+                metadata.url = Some(urlstr);
+            }
+            serde_yaml::to_writer(&mut out, &metadata)?;
+            out.write_all("---\n".as_bytes())?;
+        }
+
+        out.write_all(markdown.as_bytes())?;
     } else {
         io::stdout().lock().write_all(article.content.as_bytes())?;
-    };
+    }
 
     Ok(())
 }
@@ -132,4 +175,39 @@ fn try_parse_url(input: &str) -> Option<Url> {
         return Some(url);
     }
     None
+}
+
+#[derive(Debug, Serialize)]
+struct ArticleMetadata {
+    title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
+    length: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    byline: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    direction: Option<Direction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    excerpt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    site_name: Option<String>,
+    language: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    published_time: Option<String>,
+}
+
+impl From<Article> for ArticleMetadata {
+    fn from(a: Article) -> Self {
+        Self {
+            title: a.title,
+            url: None,
+            length: a.length,
+            byline: a.byline,
+            direction: a.direction,
+            excerpt: a.excerpt,
+            site_name: a.site_name,
+            language: a.language,
+            published_time: a.published_time,
+        }
+    }
 }

@@ -19,7 +19,9 @@ clap = { version = "4.5.48", features = ["derive"] }
 color-eyre = "0.6.5"
 html2md = { version = "0.2.15" }
 log = { version = "0.4.28", features = ["std"] }
-readability-js = {workspace = true}
+readability-js = {workspace = true, features = ["serde"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_yaml = "0.9.34"
 simple_logger = "5.0.0"
 ureq = "3.1.2"
 url = {workspace = true}
