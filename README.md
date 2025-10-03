@@ -8,6 +8,21 @@ Extract clean, readable content from web pages using Mozilla's Readability.js al
 
 This crate provides both a Rust library and CLI tool for extracting main content from HTML documents, removing navigation, ads, and other clutter. It uses the same algorithm that powers Firefox Reader Mode.
 
+## Features
+
+- **Production Algorithm**: Uses Mozilla's Readability.js from Firefox
+- **Rich Metadata**: Extracts titles, authors, publication dates, and content
+- **Multiple Formats**: HTML and plain text output
+- **CLI Tool**: Converts to clean Markdown
+- **High Performance**: Reusable parser instances for batch processing
+- **Error Recovery**: Handles malformed HTML and edge cases
+
+## Why `readability-js`?
+
+This crate uses Mozilla's actual Readability.js library implementation - the same code that powers Firefox Reader Mode. Creating a `Readability` instance takes ~30ms while processing a document takes ~10ms which is good enough for most applications, negligible compared to the accuracy benefits.
+
+For more background check out the [blog post](https://egemengol.com/blog/readability/)
+
 ## Installation
 
 ### CLI Tool
@@ -56,19 +71,6 @@ println!("Title: {}", article.title);
 println!("Author: {}", article.byline.unwrap_or_default());
 println!("Content: {}", article.content);
 ```
-
-## Features
-
-- **Production Algorithm**: Uses Mozilla's Readability.js from Firefox
-- **Rich Metadata**: Extracts titles, authors, publication dates, and content
-- **Multiple Formats**: HTML and plain text output
-- **CLI Tool**: Converts to clean Markdown
-- **High Performance**: Reusable parser instances for batch processing
-- **Error Recovery**: Handles malformed HTML and edge cases
-
-## Why `readability-js`?
-
-This crate uses Mozilla's actual Readability.js library implementation - the same code that powers Firefox Reader Mode. Creating a `Readability` instance takes ~30ms while processing a document takes ~10ms which is good enough for most applications, negligible compared to the accuracy benefits.
 
 ## How It Works
 

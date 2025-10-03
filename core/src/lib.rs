@@ -4,6 +4,9 @@
 //! from HTML documents, removing navigation, ads, and other clutter. It uses the same
 //! algorithm as Firefox Reader Mode.
 //!
+//! For background on why this crate exists and design decisions, see the
+//! [blog post](https://egemengol.com/blog/readability/).
+//!
 //! # Algorithm
 //!
 //! This crate embeds Mozilla's Readability.js library using a JavaScript engine.
