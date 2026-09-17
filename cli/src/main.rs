@@ -70,13 +70,31 @@ language: en
 With this flag, only the article content is output."
     )]
     no_frontmatter: bool,
+
+    #[arg(
+        short = 'k',
+        long,
+        help = "Disable TLS certificate verification (like curl -k)",
+        long_help = "Skip verifying the server's TLS certificate when fetching a URL.
+This allows reading pages with self-signed, expired or otherwise invalid
+certificates, e.g. intranet sites or networks behind TLS-intercepting proxies.
+
+WARNING: this disables protection against man-in-the-middle attacks. Only use it
+for hosts/networks you trust. Has no effect when reading from a file or stdin."
+    )]
+    insecure: bool,
 }
 
 fn main() -> Result<()> {
-    color_eyre::install()?;
+    // Keep error reports, but drop the developer-oriented `Location:` and
+    // backtrace-hint sections to keep stderr friendly for end users and agents.
+    color_eyre::config::HookBuilder::default()
+        .display_location_section(false)
+        .display_env_section(false)
+        .install()?;
     let args = Args::parse();
 
-    let (html, urlstr) = get_html(args.input)?;
+    let (html, urlstr) = get_html(args.input, args.insecure)?;
 
     let parser = Readability::new().wrap_err("could not create Readability")?;
     let article = match urlstr {
@@ -110,7 +128,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn get_html(input: Option<String>) -> Result<(String, Option<String>)> {
+fn get_html(input: Option<String>, insecure: bool) -> Result<(String, Option<String>)> {
     if input.is_none() {
         // Nothing is given, read stdin
         let mut html = String::new();
@@ -137,7 +155,21 @@ fn get_html(input: Option<String>) -> Result<(String, Option<String>)> {
     }
 
     if let Some(url) = try_parse_url(&input) {
-        let body: String = ureq::get(url.as_str())
+        let agent: ureq::Agent = if insecure {
+            eprintln!("warning: TLS certificate verification disabled");
+            ureq::Agent::config_builder()
+                .tls_config(
+                    ureq::tls::TlsConfig::builder()
+                        .disable_verification(true)
+                        .build(),
+                )
+                .build()
+                .into()
+        } else {
+            ureq::Agent::new_with_defaults()
+        };
+        let body: String = agent
+            .get(url.as_str())
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.")
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
             .call()
